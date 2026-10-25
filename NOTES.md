@@ -156,3 +156,84 @@
   (если тот был неполным).
 - История не обновляется автоматически; для восполнения пропусков
   потокового слоя повторять `backfill` за нужные сутки.
+
+## ЛР2. Форматы данных
+
+### Схема Avro
+
+- `schemas/event.avsc` (v1) — 14 полей паспорта. Обязательные: `event_key`,
+  `event_time`, `received_at`, `source`, `type`. Остальные nullable с default null.
+- `event_time` и `received_at` — `long` с `logicalType: timestamp-millis`,
+  UTC. Конвертация ISO 8601 → мс в `schemas/check.py:iso_to_ms`.
+- Схема v2 (`event_v2.avsc`) добавлена полем `review_state` (`null|string`,
+  default null). Версии v1 и v2 — разные коммиты.
+
+### DuckDB: типы и повторы
+
+- `read_json_auto` вывел: `event_time` и `received_at` — `VARCHAR`
+  (строки ISO 8601); `pr_number` — `BIGINT` (бывает null); `pr_merged`,
+  `public` — `BOOLEAN`; `pr_id` — `BIGINT`.
+- Отличие от схемы: DuckDB не парсит ISO 8601 сам, приведение
+  `CAST(... AS TIMESTAMP)` делается в `to_parquet.sql`. В схеме Avro
+  время — `timestamp-millis` (long), поэтому в `check.py` конверсия ISO→мс.
+- Событий в `stream/`: NNN по часам, `dup_keys = 0`.
+- Событий в `history/`: NNN.
+
+### Parquet
+
+- `to_parquet.sql`: `data/duckdb/parquet/events/event_date=…/part-*.parquet`.
+  Партиция — `event_date` по `event_time` UTC (не по `received_at`).
+- `OVERWRITE_OR_IGNORE true` + `FILENAME_PATTERN 'part-{i}'` — повторный
+  запуск перезаписывает те же файлы в тех же партициях, копий не появляется.
+- Объём: raw ~X МБ, parquet ~Y МБ (сжатие ~Z×).
+
+### Замеры raw vs Parquet
+
+Запрос: число событий по часам за 22.10.2026 в разрезе `type`.
+Медиана трёх прогонов (`.timer on`, `real`).
+
+| Путь                                | 1-й, с | 2-й, с | 3-й, с | **Медиана, с** |
+| ----------------------------------- | ------ | ------ | ------ | -------------- |
+| raw (gzip-JSON, stream + history)   | 4.971  | 3.590  | 3.529  | **3.590**      |
+| Parquet (snappy, hive_partitioning) | 0.022  | 0.016  | 0.018  | **0.018**      |
+| ускорение                           |        |        |        | **~200×**      |
+
+Ответы совпали (72 строки = 24 ч × 3 type).
+
+### Объём
+
+| Каталог                      | du -sh    |
+| ---------------------------- | --------- |
+| `data/raw/stream`            | 13 МБ     |
+| `data/raw/history`           | 15 МБ     |
+| `data/raw` всего             | **28 МБ** |
+| `data/duckdb/parquet/events` | **33 МБ** |
+
+Parquet (snappy) на 18% **больше** raw (gzip), но в 200 раз быстрее
+на запросе за сутки. Причины размера:
+
+- raw сжимает повторяющиеся ключи JSON (gzip ×7–8 эффективнее snappy);
+- в Parquet 15 файлов × overhead метаданных (~50–100 КБ на файл);
+- колоночное хранение разреженных строковых колонок.
+
+Скорость даёт партиционирование: raw требует распаковки всех ~330
+файлов, Parquet отсекает 14 из 15 партиций по метаданным. zstd
+(допзадание) даст ~2× меньше по объёму при той же скорости.
+
+### Совместимость
+
+- v1 → v2 (backward): `errors_total = 0`, поле `review_state` = null в
+  прочитанных записях (default).
+- v2 → v1 (forward): `errors_total = 0`, поле `review_state` отбрасывается
+  v1-читателем (Avro не падает на неизвестных полях).
+- Вид совместимости: **Full** (добавление поля с default в Avro совместимо
+  в обе стороны).
+
+### Шаг 9
+
+- v2-запрос пишет только `event_date >= 2026-10-25`.
+- `read_union.sql` с `union_by_name = true`: у дат < 2026-10-25
+  `with_review_state = 0` — поле отсутствует (старые партиции v1).
+- У `2026-10-25` `with_review_state = 0` тоже: в raw `review_state` нет,
+  v2 читает старые данные с default. Заполнится, начиная с ЛР6
+  (`produce` + схема v2 в реестре).
