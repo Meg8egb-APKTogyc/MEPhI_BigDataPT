@@ -1,0 +1,85 @@
+{
+    "type": "record",
+    "name": "Event",
+    "namespace": "ru.mephi.tobd.gharchive",
+    "doc": "Событие GH Archive после фильтра. Ключ и время события обязательны. Время — мс UTC.",
+    "fields": [
+        {
+            "name": "event_key",
+            "type": "string",
+            "doc": "id события GitHub, идемпотентный ключ"
+        },
+        {
+            "name": "event_time",
+            "type": { "type": "long", "logicalType": "timestamp-millis" },
+            "doc": "created_at события, UTC, мс с эпохи"
+        },
+        {
+            "name": "received_at",
+            "type": { "type": "long", "logicalType": "timestamp-millis" },
+            "doc": "время получения сборщиком, UTC, мс с эпохи"
+        },
+        { "name": "source", "type": "string", "doc": "значение оси SOURCE" },
+        { "name": "type", "type": "string", "doc": "тип события GitHub" },
+        {
+            "name": "action",
+            "type": ["null", "string"],
+            "default": null,
+            "doc": "действие из payload"
+        },
+        {
+            "name": "actor_login",
+            "type": ["null", "string"],
+            "default": null,
+            "doc": "логин автора"
+        },
+        {
+            "name": "repo_name",
+            "type": ["null", "string"],
+            "default": null,
+            "doc": "owner/repo"
+        },
+        {
+            "name": "org_login",
+            "type": ["null", "string"],
+            "default": null,
+            "doc": "организация, если есть"
+        },
+        {
+            "name": "pr_number",
+            "type": ["null", "int"],
+            "default": null,
+            "doc": "номер PR"
+        },
+        {
+            "name": "pr_id",
+            "type": ["null", "long"],
+            "default": null,
+            "doc": "id PR"
+        },
+        {
+            "name": "pr_state",
+            "type": ["null", "string"],
+            "default": null,
+            "doc": "open/closed"
+        },
+        {
+            "name": "pr_merged",
+            "type": ["null", "boolean"],
+            "default": null,
+            "doc": "слит ли PR"
+        },
+        {
+            "name": "review_state",
+            "type": ["null", "string"],
+            "default": null,
+            "doc": "v2: состояние review из payload.review.state; null у не-review событий и у данных по схеме v1"
+        },
+        {
+            "name": "public",
+            "type": ["null", "boolean"],
+            "default": null,
+            "doc": "публичный репозиторий"
+        }
+    ]
+}
