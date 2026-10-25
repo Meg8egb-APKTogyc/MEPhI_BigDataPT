@@ -280,3 +280,24 @@ $ DESCRIBE SELECT \* FROM read_parquet('.../event_date=2026-10-22/part-0.parquet
 `event_date=2026-10-22/part-0.parquet` остался `окт 25 19:35`
 (время первого прогона `to_parquet.sql`), после `to_parquet_v2.sql`
 не менялся.
+
+### Проверка «no copies» (повторный запуск to_parquet.sql)
+
+Два прогона `to_parquet.sql` подряд:
+
+- **число `.parquet`-файлов**: 15 → 15, копий (`part-1.parquet` и т.п.)
+  не появилось;
+- **binary-md5 каждого файла меняется** — из-за параллельного
+  `read_json_auto` (порядок строк недетерминирован) и метаданных
+  Parquet. Это не признак изменения данных;
+- **content-hash по партиции** `md5(string_agg(event_key, ',' ORDER BY event_key))`:
+  для **всех 15 дат** (11.10–25.10) совпадает до и после прогона
+  (`diff content_before.csv content_after.csv` — пусто). Логическое
+  содержимое не изменилось, повторный запуск идемпотентен.
+
+Вывод: `OVERWRITE_OR_IGNORE true` + `FILENAME_PATTERN 'part-{i}'`
+перезаписывают файл в партиции, копий не создают; содержимое
+стабильно.
+
+После проверки повторно запущен `to_parquet_v2.sql` — колонка
+`review_state` в `event_date=2026-10-25` восстановлена.
