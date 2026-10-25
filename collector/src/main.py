@@ -99,6 +99,7 @@ def fetch_hour(hour_dt, max_retries=4):
 def normalize(ev, received_at_iso):
     pl = ev.get("payload") or {}
     pr = pl.get("pull_request") or {}
+    rv = pl.get("review") or {}
     pr_number = pl.get("number")
     if pr_number is None:
         pr_number = pr.get("number")
@@ -116,6 +117,7 @@ def normalize(ev, received_at_iso):
         "pr_id":       pr.get("id"),
         "pr_state":    pr.get("state"),
         "pr_merged":   pr.get("merged"),
+        "review_state": rv.get("state"),
         "public":      ev.get("public"),
     }
 

@@ -14,7 +14,7 @@ COPY (
     pr_state,
     CAST(pr_merged AS BOOLEAN) AS pr_merged,
     CAST(public    AS BOOLEAN) AS public,
-    CAST(NULL AS VARCHAR)      AS review_state,
+    review_state,
     CAST(event_time AS DATE)   AS event_date
   FROM read_json_auto([
     '/data/raw/stream/dt=*/hour=*/*.jsonl.gz'

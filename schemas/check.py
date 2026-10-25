@@ -48,6 +48,7 @@ def prepare(rec):
         "pr_id": rec.get("pr_id"),
         "pr_state": rec.get("pr_state"),
         "pr_merged": rec.get("pr_merged"),
+        "review_state": rec.get("review_state"),
         "public": rec.get("public"),
     }
 
