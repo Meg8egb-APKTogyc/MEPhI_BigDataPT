@@ -173,9 +173,6 @@ def process_hour(hour_dt, out_dir, received_at_iso, received_at_dt,
             inc("events", kept)
             return (kept, raw_count)
         except (EOFError, gzip.BadGzipFile, OSError, http.client.HTTPException) as e:
-            # http.client.HTTPException — для IncompleteRead: обрыв TCP
-            # посреди тела ответа. Раньше не отлавливался, tmp не удалялся,
-            # и исключение уходило в run_record как process_failed.
             tmp.unlink(missing_ok=True)
             pause = 2 ** attempt
             log("warn", "incomplete_file",
